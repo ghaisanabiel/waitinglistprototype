@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Antrian Resto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #FAF6EE;
+    color: #2A241C;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .shell { max-width: 640px; margin: 0 auto; padding: 40px 24px 80px; }
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    border-bottom: 1px solid #D8CDB8;
+    padding-bottom: 18px;
+  }
+  header.top h1 { font-family: "Fraunces", serif; font-weight: 600; font-size: 28px; margin: 0; }
+  header.top span.tag { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: #6B6153; }
+  .card { background: #F1EAD9; border: 1px solid #D8CDB8; border-radius: 10px; padding: 22px; margin-bottom: 24px; }
+  .card h2 { font-family: "Fraunces", serif; font-weight: 600; font-size: 17px; margin: 0 0 14px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: #6B6153; margin-bottom: 6px; }
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #D8CDB8;
+    border-radius: 7px;
+    background: #FAF6EE;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 15px;
+    color: #2A241C;
+  }
+  .field input:focus { outline: none; border-color: #A8391F; }
+  .row2 { display: flex; gap: 12px; }
+  .row2 .field { flex: 1; }
+  button.primary {
+    background: #A8391F;
+    color: #FAF6EE;
+    border: none;
+    border-radius: 7px;
+    padding: 12px 18px;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+  }
+  button.primary:hover { background: #7E2A16; }
+  button.ghost {
+    background: transparent;
+    border: 1px solid #D8CDB8;
+    color: #2A241C;
+    border-radius: 7px;
+    padding: 7px 12px;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.ghost:hover { border-color: #A8391F; color: #A8391F; }
+  .statusLine {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #FAF6EE;
+    border: 1px dashed #D8CDB8;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+  }
+  .statusLine b { font-family: "Fraunces", serif; font-size: 20px; font-weight: 600; }
+  ul.queueList { list-style: none; margin: 0; padding: 0; }
+  ul.queueList li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #D8CDB8; }
+  ul.queueList li:last-child { border-bottom: none; }
+  .num { font-family: "IBM Plex Mono", monospace; font-size: 18px; font-weight: 600; width: 38px; text-align: right; color: #6B6153; }
+  .num.serving { color: #A8391F; }
+  .name { flex: 1; }
+  .name b { font-weight: 600; }
+  .name small { display: block; color: #6B6153; font-size: 12px; }
+  .badge {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid #D8CDB8;
+    color: #6B6153;
+  }
+  .badge.serving { color: #A8391F; border-color: #A8391F; }
+  .empty { color: #6B6153; font-size: 14px; padding: 8px 0; }
+  .note { font-size: 12px; color: #6B6153; line-height: 1.5; margin-top: 4px; }
+
+  .ticketWrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 30px 20px; }
+  .ticket {
+    width: 100%;
+    max-width: 340px;
+    background: #FAF6EE;
+    border: 1px solid #D8CDB8;
+    padding: 28px 24px 24px;
+    text-align: center;
+  }
+  .ticket .label { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 1px; color: #6B6153; text-transform: uppercase; }
+  .ticket .bignum { font-family: "Fraunces", serif; font-weight: 700; font-size: 84px; line-height: 1; margin: 10px 0 6px; }
+  .ticket .who { font-size: 15px; margin-bottom: 18px; color: #2A241C; }
+  .ticket .divider { border-top: 1px dashed #D8CDB8; margin: 18px 0; }
+  .ticket .statusWord { font-family: "IBM Plex Mono", monospace; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 999px; display: inline-block; margin-bottom: 14px; }
+  .statusWord.waiting { background: #F1EAD9; color: #6B6153; }
+  .statusWord.serving { background: #A8391F; color: #FAF6EE; }
+  .statusWord.done { background: #5B6B4A; color: #FAF6EE; }
+  .ticket .servingNow { font-size: 13px; color: #6B6153; }
+  .ticket .servingNow b { color: #2A241C; font-family: "IBM Plex Mono", monospace; }
+
+  #printArea { position: fixed; left: 9999px; top: 0; }
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: fixed; left: 0; top: 0; width: 58mm; padding: 4mm; font-family: "IBM Plex Mono", monospace; text-align: center; color: #000; }
+    #printArea .pName { font-size: 13px; margin-bottom: 2mm; }
+    #printArea .pNum { font-size: 26px; font-weight: 700; margin: 2mm 0; }
+    #printArea .pWho { font-size: 11px; margin-bottom: 3mm; }
+    #printArea .pQr { display: flex; justify-content: center; margin-bottom: 2mm; }
+    #printArea .pFoot { font-size: 9px; color: #333; }
+  }
+</style>
+</head>
+<body>
+<div id="appRoot"></div>
+<div id="printArea"></div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var ticketId = params.get("t");
+  var root = document.getElementById("appRoot");
+  var printArea = document.getElementById("printArea");
+  var store = null;
+  var storeKind = "connecting";
+
+  function makeLocalStore() {
+    var KEY = "queueLocalFallback";
+    function read() {
+      try { return JSON.parse(localStorage.getItem(KEY) || "{}"); }
+      catch (e) { return {}; }
+    }
+    function write(data) { localStorage.setItem(KEY, JSON.stringify(data)); notify(); }
+    var listeners = [];
+    function notify() { listeners.forEach(function (fn) { fn(); }); }
+
+    function docRef(path) {
+      return {
+        id: path.split("/").pop(),
+        get: function () {
+          var d = read();
+          var ex = Object.prototype.hasOwnProperty.call(d, path);
+          return Promise.resolve({ exists: ex, data: function () { return ex ? d[path] : undefined; } });
+        },
+        set: function (data) {
+          var d = read();
+          d[path] = data;
+          write(d);
+          return Promise.resolve();
+        },
+        onSnapshot: function (next) {
+          function push() {
+            var d = read();
+            var ex = Object.prototype.hasOwnProperty.call(d, path);
+            next({ exists: ex, data: function () { return ex ? d[path] : undefined; } });
+          }
+          listeners.push(push);
+          push();
+          return function () {
+            var i = listeners.indexOf(push);
+            if (i >= 0) listeners.splice(i, 1);
+          };
+        }
+      };
+    }
+    function collectionRef(path) {
+      return {
+        add: function (data) {
+          var id = "local" + Date.now() + Math.floor(Math.random() * 1000);
+          return docRef(path + "/" + id).set(data).then(function () { return docRef(path + "/" + id); });
+        },
+        onSnapshotOrdered: function (field, next) {
+          function push() {
+            var d = read();
+            var prefix = path + "/";
+            var docs = Object.keys(d)
+              .filter(function (k) { return k.indexOf(prefix) === 0 && k.slice(prefix.length).indexOf("/") === -1; })
+              .map(function (k) { return { id: k.slice(prefix.length), data: function () { return d[k]; } }; });
+            docs.sort(function (a, b) { return (a.data()[field] || 0) - (b.data()[field] || 0); });
+            next({ docs: docs });
+          }
+          listeners.push(push);
+          push();
+          return function () {
+            var i = listeners.indexOf(push);
+            if (i >= 0) listeners.splice(i, 1);
+          };
+        }
+      };
+    }
+    return { doc: docRef, collection: collectionRef, kind: "local" };
+  }
+
+  function ordered(coll, field, next) {
+    if (store.kind === "local") return coll.onSnapshotOrdered(field, next);
+    return coll.orderBy(field).onSnapshot(next);
+  }
+
+  var firebaseConfig = {
+    apiKey: "AIzaSyBO95brr-cNM06UBdgL_evMqL2gFbuIEO0",
+    authDomain: "waiting-list-webs.firebaseapp.com",
+    projectId: "waiting-list-webs",
+    storageBucket: "waiting-list-webs.firebasestorage.app",
+    messagingSenderId: "121336326489",
+    appId: "1:121336326489:web:65e95cd48c3943bafa8448",
+    measurementId: "G-Z8MQLHZ175"
+  };
+
+  function initStore() {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      var firestoreDb = firebase.firestore();
+      firestoreDb.kind = "remote";
+      store = firestoreDb;
+      storeKind = "remote";
+      boot();
+    } catch (e) {
+      store = makeLocalStore();
+      storeKind = "local";
+      boot();
+    }
+  }
+
+  function boot() {
+    if (ticketId) renderCustomerView(); else renderStaffView();
+  }
+
+  function fmtTime(ms) {
+    var d = new Date(ms);
+    var h = String(d.getHours()).padStart(2, "0");
+    var m = String(d.getMinutes()).padStart(2, "0");
+    return h + ":" + m;
+  }
+
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      if (k === "class") node.className = attrs[k];
+      else if (k === "text") node.textContent = attrs[k];
+      else if (k.indexOf("on") === 0 && typeof attrs[k] === "function") node.addEventListener(k.slice(2), attrs[k]);
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+    return node;
+  }
+
+  function renderStaffView() {
+    root.innerHTML = "";
+
+    var connFlag = el("span", { class: "tag", text: storeKind === "remote" ? "tersambung" : "mode lokal, perangkat ini saja" });
+    var header = el("header", { class: "top" }, [el("h1", { text: "Antrian" }), connFlag]);
+
+    var nameInput = el("input", { type: "text", placeholder: "Nama pelanggan" });
+    var sizeInput = el("input", { type: "number", min: "1", value: "1" });
+    var noteEl = el("div", { class: "note" });
+    var submitBtn = el("button", { class: "primary", text: "Tambah & buat tiket" });
+
+    var formCard = el("div", { class: "card" }, [
+      el("h2", { text: "Tambah pelanggan" }),
+      el("div", { class: "row2" }, [
+        el("div", { class: "field" }, [el("label", { text: "Nama" }), nameInput]),
+        el("div", { class: "field", style: "max-width:110px;" }, [el("label", { text: "Jumlah orang" }), sizeInput])
+      ]),
+      submitBtn,
+      noteEl
+    ]);
+
+    var previewBody = el("div");
+    var printBtn = el("button", { class: "ghost", text: "Cetak tiket" });
+    var previewCard = el("div", { class: "card" }, [el("h2", { text: "Tiket terbaru" }), previewBody, printBtn]);
+    previewCard.style.display = "none";
+
+    var servingNowNum = el("b", { text: "belum ada" });
+    var statusLine = el("div", { class: "statusLine" }, [el("span", { text: "Sedang dilayani" }), servingNowNum]);
+
+    var queueList = el("ul", { class: "queueList" });
+    var queueEmpty = el("div", { class: "empty", text: "Belum ada antrian." });
+    queueEmpty.style.display = "none";
+    var queueCard = el("div", { class: "card" }, [el("h2", { text: "Antrian saat ini" }), queueList, queueEmpty]);
+
+    var shell = el("div", { class: "shell" }, [header, formCard, previewCard, statusLine, queueCard]);
+    root.appendChild(shell);
+
+    var metaDoc = store.doc("meta/state");
+    var queueColl = store.collection("queue");
+    var servingNumber = 0;
+
+    metaDoc.onSnapshot(function (snap) {
+      var data = snap.exists ? snap.data() : {};
+      servingNumber = data.servingNumber || 0;
+      servingNowNum.textContent = servingNumber ? ("nomor " + servingNumber) : "belum ada";
+    });
+
+    function callNumber(docId) {
+      queueColl.doc(docId).get().then(function (snap) {
+        if (!snap.exists) return;
+        var v = snap.data();
+        return queueColl.doc(docId).set(Object.assign({}, v, { status: "serving" })).then(function () {
+          return metaDoc.get();
+        }).then(function (metaSnap) {
+          var meta = metaSnap.exists ? metaSnap.data() : { nextNumber: 1 };
+          return metaDoc.set(Object.assign({}, meta, { servingNumber: v.number }));
+        });
+      });
+    }
+
+    function markDone(docId) {
+      queueColl.doc(docId).get().then(function (snap) {
+        if (!snap.exists) return;
+        var v = snap.data();
+        return queueColl.doc(docId).set(Object.assign({}, v, { status: "done" }));
+      });
+    }
+
+    ordered(queueColl, "number", function (qs) {
+      var docs = qs.docs.filter(function (d) { return d.data().status !== "done"; });
+      queueList.innerHTML = "";
+      if (docs.length === 0) {
+        queueEmpty.style.display = "block";
+        return;
+      }
+      queueEmpty.style.display = "none";
+      docs.forEach(function (d) {
+        var v = d.data();
+        var actionBtn = v.status === "serving"
+          ? el("button", { class: "ghost", text: "Selesai", onclick: function () { markDone(d.id); } })
+          : el("button", { class: "ghost", text: "Panggil", onclick: function () { callNumber(d.id); } });
+        var li = el("li", {}, [
+          el("span", { class: "num " + (v.status === "serving" ? "serving" : ""), text: String(v.number) }),
+          el("span", { class: "name" }, [
+            el("b", { text: v.name || "Tanpa nama" }),
+            el("small", { text: (v.partySize || 1) + " orang, masuk " + fmtTime(v.createdAt || Date.now()) })
+          ]),
+          el("span", { class: "badge " + v.status, text: v.status === "serving" ? "dilayani" : "menunggu" }),
+          actionBtn
+        ]);
+        queueList.appendChild(li);
+      });
+    });
+
+    submitBtn.addEventListener("click", function () {
+      var name = nameInput.value.trim();
+      var size = parseInt(sizeInput.value, 10) || 1;
+      if (!name) { noteEl.textContent = "Isi nama pelanggan dulu."; return; }
+      noteEl.textContent = "Menyimpan.";
+      metaDoc.get().then(function (snap) {
+        var meta = snap.exists ? snap.data() : { nextNumber: 1, servingNumber: 0 };
+        var number = meta.nextNumber || 1;
+        var entry = { number: number, name: name, partySize: size, status: "waiting", createdAt: Date.now() };
+        return queueColl.add(entry).then(function (ref) {
+          return metaDoc.set(Object.assign({}, meta, { nextNumber: number + 1 })).then(function () {
+            return { id: ref.id, entry: entry };
+          });
+        });
+      }).then(function (result) {
+        noteEl.textContent = "Tiket nomor " + result.entry.number + " dibuat.";
+        nameInput.value = "";
+        sizeInput.value = "1";
+        showTicketPreview(result.id, result.entry, previewCard, previewBody, printBtn);
+      }).catch(function () {
+        noteEl.textContent = "Gagal menyimpan, coba lagi.";
+      });
+    });
+  }
+
+  function showTicketPreview(docId, entry, previewCard, previewBody, printBtn) {
+    previewCard.style.display = "block";
+    previewBody.innerHTML = "";
+    previewBody.appendChild(el("div", { class: "statusLine" }, [el("span", { text: "Nomor" }), el("b", { text: String(entry.number) })]));
+    previewBody.appendChild(el("div", { class: "note", text: entry.name + ", " + entry.partySize + " orang" }));
+
+    var link = buildTicketLink(docId);
+    printArea.innerHTML = "";
+    printArea.appendChild(el("div", { class: "pName", text: "Tiket Antrian" }));
+    printArea.appendChild(el("div", { class: "pNum", text: "No. " + entry.number }));
+    printArea.appendChild(el("div", { class: "pWho", text: entry.name + ", " + entry.partySize + " orang" }));
+    var qrHolder = el("div", { class: "pQr" });
+    printArea.appendChild(qrHolder);
+    printArea.appendChild(el("div", { class: "pFoot", text: "Scan untuk lihat status antrianmu" }));
+
+    new QRCode(qrHolder, { text: link, width: 120, height: 120 });
+
+    printBtn.onclick = function () { window.print(); };
+  }
+
+  function buildTicketLink(docId) {
+    var url = new URL(window.location.href);
+    url.searchParams.set("t", docId);
+    return url.toString();
+  }
+
+  function renderCustomerView() {
+    root.innerHTML = "";
+    var body = el("div", { class: "ticket" }, [el("div", { class: "label", text: "Memuat tiket." })]);
+    root.appendChild(el("div", { class: "ticketWrap" }, [body]));
+
+    var ticketDoc = store.doc("queue/" + ticketId);
+    var metaDoc = store.doc("meta/state");
+    var servingNumber = 0;
+    var lastTicket = null;
+
+    function paint() {
+      body.innerHTML = "";
+      if (!lastTicket) {
+        body.appendChild(el("div", { class: "label", text: "Tiket tidak ditemukan" }));
+        body.appendChild(el("div", { class: "note", text: "Coba scan ulang QR di tiketmu." }));
+        return;
+      }
+      var v = lastTicket;
+      var statusWord = v.status === "serving" ? "Sedang dilayani" : v.status === "done" ? "Selesai" : "Menunggu";
+      body.appendChild(el("div", { class: "label", text: "Nomor antrian" }));
+      body.appendChild(el("div", { class: "bignum", text: String(v.number) }));
+      body.appendChild(el("div", { class: "who", text: (v.name || "") + (v.partySize ? (", " + v.partySize + " orang") : "") }));
+      body.appendChild(el("div", { class: "divider" }));
+      body.appendChild(el("div", { class: "statusWord " + v.status, text: statusWord }));
+      body.appendChild(el("div", { class: "servingNow" }, [document.createTextNode("Sedang dilayani, nomor "), el("b", { text: servingNumber ? String(servingNumber) : "belum ada" })]));
+      if (v.status === "waiting") {
+        var left = v.number - servingNumber - 1;
+        if (left < 0) left = 0;
+        body.appendChild(el("div", { class: "servingNow" }, [document.createTextNode("Kira kira "), el("b", { text: String(left) }), document.createTextNode(" tiket lagi sebelum kamu")]));
+      }
+    }
+
+    ticketDoc.onSnapshot(function (snap) { lastTicket = snap.exists ? snap.data() : null; paint(); });
+    metaDoc.onSnapshot(function (snap) {
+      var data = snap.exists ? snap.data() : {};
+      servingNumber = data.servingNumber || 0;
+      paint();
+    });
+  }
+
+  initStore();
+})();
+</script>
+</body>
+</html>
