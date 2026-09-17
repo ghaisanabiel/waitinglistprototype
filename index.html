@@ -439,33 +439,35 @@
   }
 
   function printTicket(entry, dataUrl) {
-    var win = window.open("", "_blank", "width=320,height=520");
+    var win = window.open("", "_blank", "width=340,height=560");
     if (!win) {
       alert("Pop up diblokir browser. Izinkan pop up buat situs ini, terus coba cetak lagi.");
       return;
     }
     var html =
       '<!doctype html><html><head><meta charset="utf8"><title>Tiket</title><style>' +
-      'body{margin:0;padding:4mm;width:58mm;font-family:monospace;text-align:center;color:#000;}' +
+      'body{margin:0;padding:6mm;width:58mm;font-family:monospace;text-align:center;color:#000;background:#fff;}' +
       '.n{font-size:12px;margin-bottom:2mm;}' +
       '.b{font-size:26px;font-weight:700;margin:2mm 0;}' +
       '.w{font-size:11px;margin-bottom:3mm;}' +
-      'img{width:38mm;height:38mm;}' +
+      'img{width:40mm;height:40mm;display:block;margin:0 auto;}' +
       '.f{font-size:9px;color:#333;margin-top:2mm;}' +
+      '.p{margin-top:6mm;font-family:sans-serif;font-size:13px;padding:8px 14px;border:1px solid #999;background:#f2f2f2;cursor:pointer;}' +
+      '@media print { .p { display:none; } }' +
       '</style></head><body>' +
       '<div class="n">Tiket Antrian</div>' +
       '<div class="b">No. ' + entry.number + '</div>' +
       '<div class="w">' + escapeHtml(entry.name) + ', ' + entry.partySize + ' orang</div>' +
-      '<img src="' + dataUrl + '" />' +
+      '<img id="qrImg" src="' + dataUrl + '" />' +
       '<div class="f">Scan untuk lihat status antrianmu</div>' +
+      '<button class="p" onclick="window.print()">Print</button>' +
+      '<scr' + 'ipt>' +
+      'document.getElementById("qrImg").onload = function () { setTimeout(function () { window.focus(); window.print(); }, 100); };' +
+      '</scr' + 'ipt>' +
       '</body></html>';
     win.document.open();
     win.document.write(html);
     win.document.close();
-    setTimeout(function () {
-      win.focus();
-      win.print();
-    }, 350);
   }
 
   function buildTicketLink(docId) {
