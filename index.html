@@ -490,9 +490,14 @@
       }
       var v = lastTicket;
       var statusWord = v.status === "serving" ? "Sedang dilayani" : v.status === "done" ? "Selesai" : "Menunggu";
-      body.appendChild(el("div", { class: "label", text: "Nomor antrian" }));
+      body.appendChild(el("div", { class: "label", text: "Nomor tiket" }));
       body.appendChild(el("div", { class: "bignum", text: String(v.number) }));
       body.appendChild(el("div", { class: "who", text: (v.name || "") + (v.partySize ? (", " + v.partySize + " orang") : "") }));
+      if (v.status === "waiting") {
+        var position = v.number - servingNumber;
+        if (position < 1) position = 1;
+        body.appendChild(el("div", { class: "statusLine" }, [el("span", { text: "Antrian ke" }), el("b", { text: String(position) })]));
+      }
       body.appendChild(el("div", { class: "divider" }));
       body.appendChild(el("div", { class: "statusWord " + v.status, text: statusWord }));
       body.appendChild(el("div", { class: "servingNow" }, [document.createTextNode("Sedang dilayani, nomor "), el("b", { text: servingNumber ? String(servingNumber) : "belum ada" })]));
