@@ -32,6 +32,8 @@
   header.top span.tag { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: #6B6153; }
   .card { background: #F1EAD9; border: 1px solid #D8CDB8; border-radius: 10px; padding: 22px; margin-bottom: 24px; }
   .card h2 { font-family: "Fraunces", serif; font-weight: 600; font-size: 17px; margin: 0 0 14px; }
+  .row2.header { justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .row2.header h2 { margin: 0; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 13px; color: #6B6153; margin-bottom: 6px; }
   .field input {
@@ -126,17 +128,7 @@
   .ticket .servingNow { font-size: 13px; color: #6B6153; }
   .ticket .servingNow b { color: #2A241C; font-family: "IBM Plex Mono", monospace; }
 
-  #printArea { position: fixed; left: 9999px; top: 0; }
-  @media print {
-    body * { visibility: hidden; }
-    #printArea, #printArea * { visibility: visible; }
-    #printArea { position: fixed; left: 0; top: 0; width: 58mm; padding: 4mm; font-family: "IBM Plex Mono", monospace; text-align: center; color: #000; }
-    #printArea .pName { font-size: 13px; margin-bottom: 2mm; }
-    #printArea .pNum { font-size: 26px; font-weight: 700; margin: 2mm 0; }
-    #printArea .pWho { font-size: 11px; margin-bottom: 3mm; }
-    #printArea .pQr { display: flex; justify-content: center; margin-bottom: 2mm; }
-    #printArea .pFoot { font-size: 9px; color: #333; }
-  }
+  #printArea { display: none; }
 </style>
 </head>
 <body>
@@ -176,6 +168,12 @@
           write(d);
           return Promise.resolve();
         },
+        delete: function () {
+          var d = read();
+          delete d[path];
+          write(d);
+          return Promise.resolve();
+        },
         onSnapshot: function (next) {
           function push() {
             var d = read();
@@ -196,6 +194,14 @@
         add: function (data) {
           var id = "local" + Date.now() + Math.floor(Math.random() * 1000);
           return docRef(path + "/" + id).set(data).then(function () { return docRef(path + "/" + id); });
+        },
+        get: function () {
+          var d = read();
+          var prefix = path + "/";
+          var docs = Object.keys(d)
+            .filter(function (k) { return k.indexOf(prefix) === 0 && k.slice(prefix.length).indexOf("/") === -1; })
+            .map(function (k) { return { id: k.slice(prefix.length), data: function () { return d[k]; } }; });
+          return Promise.resolve({ docs: docs });
         },
         onSnapshotOrdered: function (field, next) {
           function push() {
@@ -305,7 +311,12 @@
     var queueList = el("ul", { class: "queueList" });
     var queueEmpty = el("div", { class: "empty", text: "Belum ada antrian." });
     queueEmpty.style.display = "none";
-    var queueCard = el("div", { class: "card" }, [el("h2", { text: "Antrian saat ini" }), queueList, queueEmpty]);
+    var clearBtn = el("button", { class: "ghost", text: "Hapus semua antrian" });
+    var queueCard = el("div", { class: "card" }, [
+      el("div", { class: "row2 header" }, [el("h2", { text: "Antrian saat ini" }), clearBtn]),
+      queueList,
+      queueEmpty
+    ]);
 
     var shell = el("div", { class: "shell" }, [header, formCard, previewCard, statusLine, queueCard]);
     root.appendChild(shell);
@@ -340,6 +351,19 @@
         return queueColl.doc(docId).set(Object.assign({}, v, { status: "done" }));
       });
     }
+
+    clearBtn.addEventListener("click", function () {
+      if (!window.confirm("Hapus semua antrian yang ada sekarang?")) return;
+      if (!window.confirm("Yakin? Semua tiket yang belum selesai bakal hilang dan nggak bisa dikembalikan.")) return;
+      queueColl.get().then(function (qs) {
+        var proms = qs.docs.map(function (d) { return store.doc("queue/" + d.id).delete(); });
+        return Promise.all(proms);
+      }).then(function () {
+        return metaDoc.set({ nextNumber: 1, servingNumber: 0 });
+      }).catch(function () {
+        alert("Gagal menghapus, coba lagi.");
+      });
+    });
 
     ordered(queueColl, "number", function (qs) {
       var docs = qs.docs.filter(function (d) { return d.data().status !== "done"; });
@@ -399,17 +423,49 @@
     previewBody.appendChild(el("div", { class: "note", text: entry.name + ", " + entry.partySize + " orang" }));
 
     var link = buildTicketLink(docId);
-    printArea.innerHTML = "";
-    printArea.appendChild(el("div", { class: "pName", text: "Tiket Antrian" }));
-    printArea.appendChild(el("div", { class: "pNum", text: "No. " + entry.number }));
-    printArea.appendChild(el("div", { class: "pWho", text: entry.name + ", " + entry.partySize + " orang" }));
-    var qrHolder = el("div", { class: "pQr" });
-    printArea.appendChild(qrHolder);
-    printArea.appendChild(el("div", { class: "pFoot", text: "Scan untuk lihat status antrianmu" }));
+    var qrHolder = el("div", { style: "display:none;" });
+    document.body.appendChild(qrHolder);
+    new QRCode(qrHolder, { text: link, width: 240, height: 240 });
 
-    new QRCode(qrHolder, { text: link, width: 120, height: 120 });
+    printBtn.onclick = function () {
+      var canvas = qrHolder.querySelector("canvas");
+      if (!canvas) {
+        alert("QR belum siap, coba klik cetak sekali lagi.");
+        return;
+      }
+      var dataUrl = canvas.toDataURL("image/png");
+      printTicket(entry, dataUrl);
+    };
+  }
 
-    printBtn.onclick = function () { window.print(); };
+  function printTicket(entry, dataUrl) {
+    var win = window.open("", "_blank", "width=320,height=520");
+    if (!win) {
+      alert("Pop up diblokir browser. Izinkan pop up buat situs ini, terus coba cetak lagi.");
+      return;
+    }
+    var html =
+      '<!doctype html><html><head><meta charset="utf8"><title>Tiket</title><style>' +
+      'body{margin:0;padding:4mm;width:58mm;font-family:monospace;text-align:center;color:#000;}' +
+      '.n{font-size:12px;margin-bottom:2mm;}' +
+      '.b{font-size:26px;font-weight:700;margin:2mm 0;}' +
+      '.w{font-size:11px;margin-bottom:3mm;}' +
+      'img{width:38mm;height:38mm;}' +
+      '.f{font-size:9px;color:#333;margin-top:2mm;}' +
+      '</style></head><body>' +
+      '<div class="n">Tiket Antrian</div>' +
+      '<div class="b">No. ' + entry.number + '</div>' +
+      '<div class="w">' + escapeHtml(entry.name) + ', ' + entry.partySize + ' orang</div>' +
+      '<img src="' + dataUrl + '" />' +
+      '<div class="f">Scan untuk lihat status antrianmu</div>' +
+      '</body></html>';
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    setTimeout(function () {
+      win.focus();
+      win.print();
+    }, 350);
   }
 
   function buildTicketLink(docId) {
