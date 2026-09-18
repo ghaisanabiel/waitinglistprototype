@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -278,7 +279,33 @@
   }
 
   function boot() {
-    if (ticketId) renderCustomerView(); else renderStaffView();
+    if (ticketId) { renderCustomerView(); return; }
+    if (typeof firebase === "undefined" || !firebase.auth) { renderStaffView(); return; }
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (user) renderStaffView(); else renderLoginView();
+    });
+  }
+
+  function renderLoginView() {
+    root.innerHTML = "";
+    var emailEl = el("input", { type: "email", placeholder: "Email staff" });
+    var passEl = el("input", { type: "password", placeholder: "Password" });
+    var noteEl = el("div", { class: "note" });
+    var loginBtn = el("button", { class: "primary", text: "Masuk" });
+    loginBtn.addEventListener("click", function () {
+      noteEl.textContent = "Masuk.";
+      firebase.auth().signInWithEmailAndPassword(emailEl.value.trim(), passEl.value)
+        .then(function () { renderStaffView(); })
+        .catch(function () { noteEl.textContent = "Email atau password salah."; });
+    });
+    var card = el("div", { class: "card" }, [
+      el("h2", { text: "Masuk sebagai staff" }),
+      el("div", { class: "field" }, [el("label", { text: "Email" }), emailEl]),
+      el("div", { class: "field" }, [el("label", { text: "Password" }), passEl]),
+      loginBtn,
+      noteEl
+    ]);
+    root.appendChild(el("div", { class: "shell" }, [el("header", { class: "top" }, [el("h1", { text: "Antrian" })]), card]));
   }
 
   function fmtTime(ms) {
@@ -305,7 +332,11 @@
     root.innerHTML = "";
 
     var connFlag = el("span", { class: "tag", text: storeKind === "remote" ? "tersambung" : "mode lokal, perangkat ini saja" });
-    var header = el("header", { class: "top" }, [el("h1", { text: "Antrian" }), connFlag]);
+    var logoutBtn = el("button", { class: "ghost", text: "Keluar", style: "margin-left:8px;" });
+    logoutBtn.addEventListener("click", function () {
+      if (typeof firebase !== "undefined" && firebase.auth) firebase.auth().signOut().then(function () { renderLoginView(); });
+    });
+    var header = el("header", { class: "top" }, [el("h1", { text: "Antrian" }), el("div", {}, [connFlag, logoutBtn])]);
 
     var nameInput = el("input", { type: "text", placeholder: "Nama pelanggan" });
     var sizeInput = el("input", { type: "number", min: "1", value: "1" });
