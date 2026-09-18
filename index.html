@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -246,6 +247,11 @@
     return coll.orderBy(field).onSnapshot(next);
   }
 
+  var EMAILJS_PUBLIC_KEY = "5ZVA2Jb7uG4o7bXZg";
+  var EMAILJS_SERVICE_ID = "service_zlz2hog";
+  var EMAILJS_TEMPLATE_ID = "template_toji3f4";
+  if (typeof emailjs !== "undefined") emailjs.init(EMAILJS_PUBLIC_KEY);
+
   var firebaseConfig = {
     apiKey: "AIzaSyBO95brr-cNM06UBdgL_evMqL2gFbuIEO0",
     authDomain: "waiting-list-webs.firebaseapp.com",
@@ -303,6 +309,7 @@
 
     var nameInput = el("input", { type: "text", placeholder: "Nama pelanggan" });
     var sizeInput = el("input", { type: "number", min: "1", value: "1" });
+    var emailInput = el("input", { type: "email", placeholder: "email@contoh.com" });
     var noteEl = el("div", { class: "note" });
     var submitBtn = el("button", { class: "primary", text: "Tambah & buat tiket" });
 
@@ -312,6 +319,7 @@
         el("div", { class: "field" }, [el("label", { text: "Nama" }), nameInput]),
         el("div", { class: "field", style: "max-width:110px;" }, [el("label", { text: "Jumlah orang" }), sizeInput])
       ]),
+      el("div", { class: "field" }, [el("label", { text: "Email pelanggan" }), emailInput]),
       submitBtn,
       noteEl
     ]);
@@ -356,8 +364,19 @@
         }).then(function (metaSnap) {
           var meta = metaSnap.exists ? metaSnap.data() : { nextNumber: 1 };
           return metaDoc.set(Object.assign({}, meta, { servingNumber: v.number }));
+        }).then(function () {
+          sendCallEmail(v);
         });
       });
+    }
+
+    function sendCallEmail(v) {
+      if (!v.email || typeof emailjs === "undefined") return;
+      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_email: v.email,
+        to_name: v.name,
+        ticket_number: v.number
+      }, EMAILJS_PUBLIC_KEY).catch(function () {});
     }
 
     function markDone(docId) {
@@ -410,12 +429,13 @@
     submitBtn.addEventListener("click", function () {
       var name = nameInput.value.trim();
       var size = parseInt(sizeInput.value, 10) || 1;
+      var email = emailInput.value.trim();
       if (!name) { noteEl.textContent = "Isi nama pelanggan dulu."; return; }
       noteEl.textContent = "Menyimpan.";
       metaDoc.get().then(function (snap) {
         var meta = snap.exists ? snap.data() : { nextNumber: 1, servingNumber: 0 };
         var number = meta.nextNumber || 1;
-        var entry = { number: number, name: name, partySize: size, status: "waiting", createdAt: Date.now() };
+        var entry = { number: number, name: name, partySize: size, email: email, status: "waiting", createdAt: Date.now() };
         return queueColl.add(entry).then(function (ref) {
           return metaDoc.set(Object.assign({}, meta, { nextNumber: number + 1 })).then(function () {
             return { id: ref.id, entry: entry };
@@ -425,6 +445,7 @@
         noteEl.textContent = "Tiket nomor " + result.entry.number + " dibuat.";
         nameInput.value = "";
         sizeInput.value = "1";
+        emailInput.value = "";
         showTicketPreview(result.id, result.entry, previewCard, previewBody, printBtn);
       }).catch(function () {
         noteEl.textContent = "Gagal menyimpan, coba lagi.";
